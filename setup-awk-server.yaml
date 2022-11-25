@@ -1,0 +1,75 @@
+- name: Setup Ansible AWK Server
+  hosts: awk
+  become: yes
+  tasks:
+    - name: update os
+      shell: apt-get update
+
+    - name: install depedency
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - ansible
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+        - gnupg-agent
+        - unzip
+
+    - name: Add an Apt signing key, uses whichever key is at the URL
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: somerepo | apt source
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+        state: present
+
+    - name: install docker & depedency
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - docker-ce
+        - nodejs
+        - npm
+        - python3-pip
+        - git
+
+    - name: install request dengan pip
+      pip:
+        name: "{{ item }}"
+      loop:
+        - requests==2.22.0
+        - docker-compose==1.25.0
+
+    - name: tambah user ke group docker
+      user:
+        name: "{{ ansible_user }}"
+        group: docker
+        append: yes
+
+    - name: Download ansible awx
+      ansible.builtin.get_url:
+        url: https://github.com/ansible/awx/archive/17.1.0.zip
+        dest: "/home/{{ ansible_user }}/17.1.0.zip"
+
+    - name: Unzip ansible awx
+      shell: unzip -o 17.1.0.zip
+
+    - name: Konfigurasi installer awx
+      ansible.builtin.lineinfile:
+        path: awx-17.1.0/installer/inventory
+        regexp: '^# admin_password=password'
+        line: 'admin_password=Admin#123'
+        backup: yes
+
+    - name: install ansible awx
+      ansible.builtin.shell: ansible-playbook -i awx-17.1.0/installer/inventory awx-17.1.0/installer/install.yml
+      register: results
+    - debug:
+        var: results.stdout
